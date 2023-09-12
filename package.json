@@ -1,18 +1,17 @@
 {
-  "name": "bitcoinjs-lib",
+  "name": "tidecoinjs-lib",
   "version": "6.1.3",
-  "description": "Client-side Bitcoin JavaScript library",
+  "description": "Client-side Tidecoin JavaScript library",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "engines": {
     "node": ">=8.0.0"
   },
   "keywords": [
-    "bitcoinjs",
-    "bitcoin",
+    "tidecoinjs",
+    "tidecoin",
     "browserify",
-    "javascript",
-    "bitcoinjs"
+    "javascript"
   ],
   "scripts": {
     "audit": "better-npm-audit audit -l high",
@@ -43,7 +42,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bitcoinjs/bitcoinjs-lib.git"
+    "url": "https://github.com/killsanEXE/tidecoinjs-lib.git"
   },
   "files": [
     "src"
