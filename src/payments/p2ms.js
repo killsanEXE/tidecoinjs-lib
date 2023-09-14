@@ -46,7 +46,7 @@ function p2ms(a, opts) {
     },
     a,
   );
-  const network = a.network || networks_1.bitcoin;
+  const network = a.network || networks_1.TIDECOIN;
   const o = { network };
   let chunks = [];
   let decoded = false;

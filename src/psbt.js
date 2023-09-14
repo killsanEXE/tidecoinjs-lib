@@ -6,13 +6,13 @@ const varuint = require('bip174/src/lib/converter/varint');
 const utils_1 = require('bip174/src/lib/utils');
 const address_1 = require('./address');
 const bufferutils_1 = require('./bufferutils');
-const networks_1 = require('./networks');
 const payments = require('./payments');
 const bip341_1 = require('./payments/bip341');
 const bscript = require('./script');
 const transaction_1 = require('./transaction');
 const bip371_1 = require('./psbt/bip371');
 const psbtutils_1 = require('./psbt/psbtutils');
+const networks_1 = require('./networks');
 /**
  * These are the default arguments for a Psbt instance.
  */
@@ -21,7 +21,7 @@ const DEFAULT_OPTS = {
    * A bitcoinjs Network object. This is only used if you pass an `address`
    * parameter to addOutput. Otherwise it is not needed and can be left default.
    */
-  network: networks_1.bitcoin,
+  network: networks_1.TIDECOIN,
   /**
    * When extractTransaction is called, the fee rate is checked.
    * THIS IS NOT TO BE RELIED ON.

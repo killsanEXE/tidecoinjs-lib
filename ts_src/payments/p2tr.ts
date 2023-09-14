@@ -1,5 +1,4 @@
 import { Buffer as NBuffer } from 'buffer';
-import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
 import { typeforce as typef, isTaptree, TAPLEAF_VERSION_MASK } from '../types';
 import { getEccLib } from '../ecc_lib';
@@ -14,6 +13,7 @@ import {
 import { Payment, PaymentOpts } from './index';
 import * as lazy from './lazy';
 import { bech32m } from 'bech32';
+import { TIDECOIN } from '../networks';
 
 const OPS = bscript.OPS;
 const TAPROOT_WITNESS_VERSION = 0x01;
@@ -82,7 +82,7 @@ export function p2tr(a: Payment, opts?: PaymentOpts): Payment {
     return;
   });
 
-  const network = a.network || BITCOIN_NETWORK;
+  const network = a.network || TIDECOIN;
   const o: Payment = { name: 'p2tr', network };
 
   lazy.prop(o, 'address', () => {

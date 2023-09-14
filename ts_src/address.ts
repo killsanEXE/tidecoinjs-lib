@@ -70,7 +70,7 @@ export function fromBech32(address: string): Bech32Result {
   let version;
   try {
     result = bech32.decode(address);
-  } catch (e) {}
+  } catch (e) { }
 
   if (result) {
     version = result.words[0];
@@ -115,38 +115,38 @@ export function toBech32(
 
 export function fromOutputScript(output: Buffer, network?: Network): string {
   // TODO: Network
-  network = network || networks.bitcoin;
+  network = network || networks.TIDECOIN;
 
   try {
     return payments.p2pkh({ output, network }).address as string;
-  } catch (e) {}
+  } catch (e) { }
   try {
     return payments.p2sh({ output, network }).address as string;
-  } catch (e) {}
+  } catch (e) { }
   try {
     return payments.p2wpkh({ output, network }).address as string;
-  } catch (e) {}
+  } catch (e) { }
   try {
     return payments.p2wsh({ output, network }).address as string;
-  } catch (e) {}
+  } catch (e) { }
   try {
     return payments.p2tr({ output, network }).address as string;
-  } catch (e) {}
+  } catch (e) { }
   try {
     return _toFutureSegwitAddress(output, network);
-  } catch (e) {}
+  } catch (e) { }
 
   throw new Error(bscript.toASM(output) + ' has no matching Address');
 }
 
 export function toOutputScript(address: string, network?: Network): Buffer {
-  network = network || networks.bitcoin;
+  network = network || networks.TIDECOIN;
 
   let decodeBase58: Base58CheckResult | undefined;
   let decodeBech32: Bech32Result | undefined;
   try {
     decodeBase58 = fromBase58Check(address);
-  } catch (e) {}
+  } catch (e) { }
 
   if (decodeBase58) {
     if (decodeBase58.version === network.pubKeyHash)
@@ -156,7 +156,7 @@ export function toOutputScript(address: string, network?: Network): Buffer {
   } else {
     try {
       decodeBech32 = fromBech32(address);
-    } catch (e) {}
+    } catch (e) { }
 
     if (decodeBech32) {
       if (decodeBech32.prefix !== network.bech32)

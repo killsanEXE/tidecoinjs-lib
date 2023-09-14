@@ -155,8 +155,7 @@ export function tweakInternalPubKey(
 
   if (!outputKey)
     throw new Error(
-      `Cannot tweak tap internal key for input #${inputIndex}. Public key: ${
-        tapInternalKey && tapInternalKey.toString('hex')
+      `Cannot tweak tap internal key for input #${inputIndex}. Public key: ${tapInternalKey && tapInternalKey.toString('hex')
       }`,
     );
   return outputKey.x;
@@ -313,7 +312,7 @@ function checkMixedTaprootAndNonTaprootInputFields(
   if (isBadTaprootUpdate || isBadNonTaprootUpdate || hasMixedFields)
     throw new Error(
       `Invalid arguments for Psbt.${action}. ` +
-        `Cannot use both taproot and non-taproot fields.`,
+      `Cannot use both taproot and non-taproot fields.`,
     );
 }
 function checkMixedTaprootAndNonTaprootOutputFields(
@@ -333,7 +332,7 @@ function checkMixedTaprootAndNonTaprootOutputFields(
   if (isBadTaprootUpdate || isBadNonTaprootUpdate || hasMixedFields)
     throw new Error(
       `Invalid arguments for Psbt.${action}. ` +
-        `Cannot use both taproot and non-taproot fields.`,
+      `Cannot use both taproot and non-taproot fields.`,
     );
 }
 

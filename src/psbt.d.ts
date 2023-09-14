@@ -1,8 +1,8 @@
 /// <reference types="node" />
 import { Psbt as PsbtBase } from 'bip174';
 import { KeyValue, PsbtGlobalUpdate, PsbtInput, PsbtInputUpdate, PsbtOutput, PsbtOutputUpdate } from 'bip174/src/lib/interfaces';
-import { Network } from './networks';
 import { Transaction } from './transaction';
+import { Network } from './networks';
 export interface TransactionInput {
     hash: string | Buffer;
     index: number;

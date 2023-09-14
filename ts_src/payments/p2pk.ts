@@ -1,4 +1,4 @@
-import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import { TIDECOIN } from '../networks';
 import * as bscript from '../script';
 import { isPoint, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, StackFunction } from './index';
@@ -28,7 +28,7 @@ export function p2pk(a: Payment, opts?: PaymentOpts): Payment {
     return bscript.decompile(a.input!);
   }) as StackFunction;
 
-  const network = a.network || BITCOIN_NETWORK;
+  const network = a.network || TIDECOIN;
   const o: Payment = { name: 'p2pk', network };
 
   lazy.prop(o, 'output', () => {
