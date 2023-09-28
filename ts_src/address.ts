@@ -115,7 +115,7 @@ export function toBech32(
 
 export function fromOutputScript(output: Buffer, network?: Network): string {
   // TODO: Network
-  network = network || networks.bitcoin;
+  network = network || networks.TIDECOIN;
 
   try {
     return payments.p2pkh({ output, network }).address as string;
@@ -130,9 +130,6 @@ export function fromOutputScript(output: Buffer, network?: Network): string {
     return payments.p2wsh({ output, network }).address as string;
   } catch (e) {}
   try {
-    return payments.p2tr({ output, network }).address as string;
-  } catch (e) {}
-  try {
     return _toFutureSegwitAddress(output, network);
   } catch (e) {}
 
@@ -140,7 +137,7 @@ export function fromOutputScript(output: Buffer, network?: Network): string {
 }
 
 export function toOutputScript(address: string, network?: Network): Buffer {
-  network = network || networks.bitcoin;
+  network = network || networks.TIDECOIN;
 
   let decodeBase58: Base58CheckResult | undefined;
   let decodeBech32: Bech32Result | undefined;
@@ -166,9 +163,6 @@ export function toOutputScript(address: string, network?: Network): Buffer {
           return payments.p2wpkh({ hash: decodeBech32.data }).output as Buffer;
         if (decodeBech32.data.length === 32)
           return payments.p2wsh({ hash: decodeBech32.data }).output as Buffer;
-      } else if (decodeBech32.version === 1) {
-        if (decodeBech32.data.length === 32)
-          return payments.p2tr({ pubkey: decodeBech32.data }).output as Buffer;
       } else if (
         decodeBech32.version >= FUTURE_SEGWIT_MIN_VERSION &&
         decodeBech32.version <= FUTURE_SEGWIT_MAX_VERSION &&

@@ -11,26 +11,13 @@ import {
   PsbtOutputUpdate,
   Transaction as ITransaction,
   TransactionFromBuffer,
-  TapKeySig,
-  TapScriptSig,
 } from 'bip174/src/lib/interfaces';
 import { checkForInput, checkForOutput } from 'bip174/src/lib/utils';
 import { fromOutputScript, toOutputScript } from './address';
 import { cloneBuffer, reverseBuffer } from './bufferutils';
-import { bitcoin as btcNetwork, Network } from './networks';
 import * as payments from './payments';
-import { tapleafHash } from './payments/bip341';
 import * as bscript from './script';
 import { Output, Transaction } from './transaction';
-import {
-  toXOnly,
-  tapScriptFinalizer,
-  serializeTaprootSignature,
-  isTaprootInput,
-  checkTaprootInputFields,
-  checkTaprootOutputFields,
-  checkTaprootInputForSigs,
-} from './psbt/bip371';
 import {
   witnessStackToScriptWitness,
   checkInputForSig,
@@ -41,8 +28,9 @@ import {
   isP2WPKH,
   isP2WSHScript,
   isP2SHScript,
-  isP2TR,
 } from './psbt/psbtutils';
+import { Network, TIDECOIN } from './networks';
+import { randomBytes } from '@noble/hashes/utils';
 
 export interface TransactionInput {
   hash: string | Buffer;
@@ -78,7 +66,7 @@ const DEFAULT_OPTS: PsbtOpts = {
    * A bitcoinjs Network object. This is only used if you pass an `address`
    * parameter to addOutput. Otherwise it is not needed and can be left default.
    */
-  network: btcNetwork,
+  network: TIDECOIN,
   /**
    * When extractTransaction is called, the fee rate is checked.
    * THIS IS NOT TO BE RELIED ON.
@@ -102,10 +90,9 @@ const DEFAULT_OPTS: PsbtOpts = {
  *   data for updateOutput.
  *   For a list of what attributes should be what types. Check the bip174 library.
  *   Also, check the integration tests for some examples of usage.
- * Signer: There are a few methods. signAllInputs and signAllInputsAsync, which will search all input
+ * Signer: There are a few methods. signAllInputs which will search all input
  *   information for your pubkey or pubkeyhash, and only sign inputs where it finds
  *   your info. Or you can explicitly sign a specific input with signInput and
- *   signInputAsync. For the async methods you can create a SignerAsync object
  *   and use something like a hardware wallet to sign with. (You must implement this)
  * Combiner: psbts can be combined easily with `psbt.combine(psbt2, psbt3, psbt4 ...)`
  *   the psbt calling combine will always have precedence when a conflict occurs.
@@ -284,7 +271,6 @@ export class Psbt {
           `Requires single object with at least [hash] and [index]`,
       );
     }
-    checkTaprootInputFields(inputData, inputData, 'addInput');
     checkInputsForPartialSig(this.data.inputs, 'addInput');
     if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
     const c = this.__CACHE;
@@ -328,7 +314,6 @@ export class Psbt {
       const script = toOutputScript(address, network);
       outputData = Object.assign(outputData, { script });
     }
-    checkTaprootOutputFields(outputData, outputData, 'addOutput');
 
     const c = this.__CACHE;
     this.data.addOutput(outputData);
@@ -369,39 +354,13 @@ export class Psbt {
     return this;
   }
 
-  finalizeInput(
-    inputIndex: number,
-    finalScriptsFunc?: FinalScriptsFunc | FinalTaprootScriptsFunc,
-  ): this {
+  finalizeInput(inputIndex: number, finalScriptsFunc?: FinalScriptsFunc): this {
     const input = checkForInput(this.data.inputs, inputIndex);
-    if (isTaprootInput(input))
-      return this._finalizeTaprootInput(
-        inputIndex,
-        input,
-        undefined,
-        finalScriptsFunc as FinalTaprootScriptsFunc,
-      );
     return this._finalizeInput(
       inputIndex,
       input,
       finalScriptsFunc as FinalScriptsFunc,
     );
-  }
-
-  finalizeTaprootInput(
-    inputIndex: number,
-    tapLeafHashToFinalize?: Buffer,
-    finalScriptsFunc: FinalTaprootScriptsFunc = tapScriptFinalizer,
-  ): this {
-    const input = checkForInput(this.data.inputs, inputIndex);
-    if (isTaprootInput(input))
-      return this._finalizeTaprootInput(
-        inputIndex,
-        input,
-        tapLeafHashToFinalize,
-        finalScriptsFunc,
-      );
-    throw new Error(`Cannot finalize input #${inputIndex}. Not Taproot.`);
   }
 
   private _finalizeInput(
@@ -434,39 +393,6 @@ export class Psbt {
       throw new Error(`Unknown error finalizing input #${inputIndex}`);
 
     this.data.clearFinalizedInput(inputIndex);
-    return this;
-  }
-
-  private _finalizeTaprootInput(
-    inputIndex: number,
-    input: PsbtInput,
-    tapLeafHashToFinalize?: Buffer,
-    finalScriptsFunc = tapScriptFinalizer,
-  ): this {
-    if (!input.witnessUtxo)
-      throw new Error(
-        `Cannot finalize input #${inputIndex}. Missing withness utxo.`,
-      );
-
-    // Check key spend first. Increased privacy and reduced block space.
-    if (input.tapKeySig) {
-      const payment = payments.p2tr({
-        output: input.witnessUtxo.script,
-        signature: input.tapKeySig,
-      });
-      const finalScriptWitness = witnessStackToScriptWitness(payment.witness!);
-      this.data.updateInput(inputIndex, { finalScriptWitness });
-    } else {
-      const { finalScriptWitness } = finalScriptsFunc(
-        inputIndex,
-        input,
-        tapLeafHashToFinalize,
-      );
-      this.data.updateInput(inputIndex, { finalScriptWitness });
-    }
-
-    this.data.clearFinalizedInput(inputIndex);
-
     return this;
   }
 
@@ -525,14 +451,6 @@ export class Psbt {
     validator: ValidateSigFunction,
     pubkey?: Buffer,
   ): boolean {
-    const input = this.data.inputs[inputIndex];
-    if (isTaprootInput(input))
-      return this.validateSignaturesOfTaprootInput(
-        inputIndex,
-        validator,
-        pubkey,
-      );
-
     return this._validateSignaturesOfInput(inputIndex, validator, pubkey);
   }
 
@@ -575,67 +493,6 @@ export class Psbt {
     return results.every(res => res === true);
   }
 
-  private validateSignaturesOfTaprootInput(
-    inputIndex: number,
-    validator: ValidateSigFunction,
-    pubkey?: Buffer,
-  ): boolean {
-    const input = this.data.inputs[inputIndex];
-    const tapKeySig = (input || {}).tapKeySig;
-    const tapScriptSig = (input || {}).tapScriptSig;
-    if (!input && !tapKeySig && !(tapScriptSig && !tapScriptSig.length))
-      throw new Error('No signatures to validate');
-    if (typeof validator !== 'function')
-      throw new Error('Need validator function to validate signatures');
-
-    pubkey = pubkey && toXOnly(pubkey);
-    const allHashses = pubkey
-      ? getTaprootHashesForSig(
-          inputIndex,
-          input,
-          this.data.inputs,
-          pubkey,
-          this.__CACHE,
-        )
-      : getAllTaprootHashesForSig(
-          inputIndex,
-          input,
-          this.data.inputs,
-          this.__CACHE,
-        );
-
-    if (!allHashses.length) throw new Error('No signatures for this pubkey');
-
-    const tapKeyHash = allHashses.find(h => !h.leafHash);
-    let validationResultCount = 0;
-    if (tapKeySig && tapKeyHash) {
-      const isValidTapkeySig = validator(
-        tapKeyHash.pubkey,
-        tapKeyHash.hash,
-        trimTaprootSig(tapKeySig),
-      );
-      if (!isValidTapkeySig) return false;
-      validationResultCount++;
-    }
-
-    if (tapScriptSig) {
-      for (const tapSig of tapScriptSig) {
-        const tapSigHash = allHashses.find(h => tapSig.pubkey.equals(h.pubkey));
-        if (tapSigHash) {
-          const isValidTapScriptSig = validator(
-            tapSig.pubkey,
-            tapSigHash.hash,
-            trimTaprootSig(tapSig.signature),
-          );
-          if (!isValidTapScriptSig) return false;
-          validationResultCount++;
-        }
-      }
-    }
-
-    return validationResultCount > 0;
-  }
-
   signAllInputsHD(
     hdKeyPair: HDSigner,
     sighashTypes: number[] = [Transaction.SIGHASH_ALL],
@@ -659,38 +516,6 @@ export class Psbt {
     return this;
   }
 
-  signAllInputsHDAsync(
-    hdKeyPair: HDSigner | HDSignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-  ): Promise<void> {
-    return new Promise((resolve, reject): any => {
-      if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
-        return reject(new Error('Need HDSigner to sign input'));
-      }
-
-      const results: boolean[] = [];
-      const promises: Array<Promise<void>> = [];
-      for (const i of range(this.data.inputs.length)) {
-        promises.push(
-          this.signInputHDAsync(i, hdKeyPair, sighashTypes).then(
-            () => {
-              results.push(true);
-            },
-            () => {
-              results.push(false);
-            },
-          ),
-        );
-      }
-      return Promise.all(promises).then(() => {
-        if (results.every(v => v === false)) {
-          return reject(new Error('No inputs were signed'));
-        }
-        resolve();
-      });
-    });
-  }
-
   signInputHD(
     inputIndex: number,
     hdKeyPair: HDSigner,
@@ -706,27 +531,6 @@ export class Psbt {
     ) as Signer[];
     signers.forEach(signer => this.signInput(inputIndex, signer, sighashTypes));
     return this;
-  }
-
-  signInputHDAsync(
-    inputIndex: number,
-    hdKeyPair: HDSigner | HDSignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-  ): Promise<void> {
-    return new Promise((resolve, reject): any => {
-      if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
-        return reject(new Error('Need HDSigner to sign input'));
-      }
-      const signers = getSignersFromHD(inputIndex, this.data.inputs, hdKeyPair);
-      const promises = signers.map(signer =>
-        this.signInputAsync(inputIndex, signer, sighashTypes),
-      );
-      return Promise.all(promises)
-        .then(() => {
-          resolve();
-        })
-        .catch(reject);
-    });
   }
 
   signAllInputs(keyPair: Signer, sighashTypes?: number[]): this {
@@ -751,40 +555,6 @@ export class Psbt {
     return this;
   }
 
-  signAllInputsAsync(
-    keyPair: Signer | SignerAsync,
-    sighashTypes?: number[],
-  ): Promise<void> {
-    return new Promise((resolve, reject): any => {
-      if (!keyPair || !keyPair.publicKey)
-        return reject(new Error('Need Signer to sign input'));
-
-      // TODO: Add a pubkey/pubkeyhash cache to each input
-      // as input information is added, then eventually
-      // optimize this method.
-      const results: boolean[] = [];
-      const promises: Array<Promise<void>> = [];
-      for (const [i] of this.data.inputs.entries()) {
-        promises.push(
-          this.signInputAsync(i, keyPair, sighashTypes).then(
-            () => {
-              results.push(true);
-            },
-            () => {
-              results.push(false);
-            },
-          ),
-        );
-      }
-      return Promise.all(promises).then(() => {
-        if (results.every(v => v === false)) {
-          return reject(new Error('No inputs were signed'));
-        }
-        resolve();
-      });
-    });
-  }
-
   signInput(
     inputIndex: number,
     keyPair: Signer,
@@ -793,39 +563,7 @@ export class Psbt {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
 
-    const input = checkForInput(this.data.inputs, inputIndex);
-
-    if (isTaprootInput(input)) {
-      return this._signTaprootInput(
-        inputIndex,
-        input,
-        keyPair,
-        undefined,
-        sighashTypes,
-      );
-    }
     return this._signInput(inputIndex, keyPair, sighashTypes);
-  }
-
-  signTaprootInput(
-    inputIndex: number,
-    keyPair: Signer,
-    tapLeafHashToSign?: Buffer,
-    sighashTypes?: number[],
-  ): this {
-    if (!keyPair || !keyPair.publicKey)
-      throw new Error('Need Signer to sign input');
-    const input = checkForInput(this.data.inputs, inputIndex);
-
-    if (isTaprootInput(input))
-      return this._signTaprootInput(
-        inputIndex,
-        input,
-        keyPair,
-        tapLeafHashToSign,
-        sighashTypes,
-      );
-    throw new Error(`Input #${inputIndex} is not of type Taproot.`);
   }
 
   private _signInput(
@@ -836,228 +574,25 @@ export class Psbt {
     const { hash, sighashType } = getHashAndSighashType(
       this.data.inputs,
       inputIndex,
-      keyPair.publicKey,
+      keyPair.publicKey!,
       this.__CACHE,
       sighashTypes,
     );
 
+    const random = randomBytes(48);
+
     const partialSig = [
       {
         pubkey: keyPair.publicKey,
-        signature: bscript.signature.encode(keyPair.sign(hash), sighashType),
+        signature: bscript.signature.encode(
+          keyPair.sign(hash, random),
+          sighashType,
+        ),
       },
     ];
 
     this.data.updateInput(inputIndex, { partialSig });
     return this;
-  }
-
-  private _signTaprootInput(
-    inputIndex: number,
-    input: PsbtInput,
-    keyPair: Signer,
-    tapLeafHashToSign?: Buffer,
-    allowedSighashTypes: number[] = [Transaction.SIGHASH_DEFAULT],
-  ): this {
-    const hashesForSig = this.checkTaprootHashesForSig(
-      inputIndex,
-      input,
-      keyPair,
-      tapLeafHashToSign,
-      allowedSighashTypes,
-    );
-
-    const tapKeySig: TapKeySig = hashesForSig
-      .filter(h => !h.leafHash)
-      .map(h =>
-        serializeTaprootSignature(
-          keyPair.signSchnorr!(h.hash),
-          input.sighashType,
-        ),
-      )[0];
-
-    const tapScriptSig: TapScriptSig[] = hashesForSig
-      .filter(h => !!h.leafHash)
-      .map(
-        h =>
-          ({
-            pubkey: toXOnly(keyPair.publicKey),
-            signature: serializeTaprootSignature(
-              keyPair.signSchnorr!(h.hash),
-              input.sighashType,
-            ),
-            leafHash: h.leafHash,
-          } as TapScriptSig),
-      );
-
-    if (tapKeySig) {
-      this.data.updateInput(inputIndex, { tapKeySig });
-    }
-
-    if (tapScriptSig.length) {
-      this.data.updateInput(inputIndex, { tapScriptSig });
-    }
-
-    return this;
-  }
-
-  signInputAsync(
-    inputIndex: number,
-    keyPair: Signer | SignerAsync,
-    sighashTypes?: number[],
-  ): Promise<void> {
-    return Promise.resolve().then(() => {
-      if (!keyPair || !keyPair.publicKey)
-        throw new Error('Need Signer to sign input');
-
-      const input = checkForInput(this.data.inputs, inputIndex);
-      if (isTaprootInput(input))
-        return this._signTaprootInputAsync(
-          inputIndex,
-          input,
-          keyPair,
-          undefined,
-          sighashTypes,
-        );
-
-      return this._signInputAsync(inputIndex, keyPair, sighashTypes);
-    });
-  }
-
-  signTaprootInputAsync(
-    inputIndex: number,
-    keyPair: Signer | SignerAsync,
-    tapLeafHash?: Buffer,
-    sighashTypes?: number[],
-  ): Promise<void> {
-    return Promise.resolve().then(() => {
-      if (!keyPair || !keyPair.publicKey)
-        throw new Error('Need Signer to sign input');
-
-      const input = checkForInput(this.data.inputs, inputIndex);
-      if (isTaprootInput(input))
-        return this._signTaprootInputAsync(
-          inputIndex,
-          input,
-          keyPair,
-          tapLeafHash,
-          sighashTypes,
-        );
-
-      throw new Error(`Input #${inputIndex} is not of type Taproot.`);
-    });
-  }
-
-  private _signInputAsync(
-    inputIndex: number,
-    keyPair: Signer | SignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-  ): Promise<void> {
-    const { hash, sighashType } = getHashAndSighashType(
-      this.data.inputs,
-      inputIndex,
-      keyPair.publicKey,
-      this.__CACHE,
-      sighashTypes,
-    );
-
-    return Promise.resolve(keyPair.sign(hash)).then(signature => {
-      const partialSig = [
-        {
-          pubkey: keyPair.publicKey,
-          signature: bscript.signature.encode(signature, sighashType),
-        },
-      ];
-
-      this.data.updateInput(inputIndex, { partialSig });
-    });
-  }
-
-  private async _signTaprootInputAsync(
-    inputIndex: number,
-    input: PsbtInput,
-    keyPair: Signer | SignerAsync,
-    tapLeafHash?: Buffer,
-    sighashTypes: number[] = [Transaction.SIGHASH_DEFAULT],
-  ): Promise<void> {
-    const hashesForSig = this.checkTaprootHashesForSig(
-      inputIndex,
-      input,
-      keyPair,
-      tapLeafHash,
-      sighashTypes,
-    );
-
-    const signaturePromises: Promise<
-      { tapKeySig: Buffer } | { tapScriptSig: TapScriptSig[] }
-    >[] = [];
-    const tapKeyHash = hashesForSig.filter(h => !h.leafHash)[0];
-    if (tapKeyHash) {
-      const tapKeySigPromise = Promise.resolve(
-        keyPair.signSchnorr!(tapKeyHash.hash),
-      ).then(sig => {
-        return { tapKeySig: serializeTaprootSignature(sig, input.sighashType) };
-      });
-      signaturePromises.push(tapKeySigPromise);
-    }
-
-    const tapScriptHashes = hashesForSig.filter(h => !!h.leafHash);
-    if (tapScriptHashes.length) {
-      const tapScriptSigPromises = tapScriptHashes.map(tsh => {
-        return Promise.resolve(keyPair.signSchnorr!(tsh.hash)).then(
-          signature => {
-            const tapScriptSig = [
-              {
-                pubkey: toXOnly(keyPair.publicKey),
-                signature: serializeTaprootSignature(
-                  signature,
-                  input.sighashType,
-                ),
-                leafHash: tsh.leafHash,
-              } as TapScriptSig,
-            ];
-            return { tapScriptSig };
-          },
-        );
-      });
-      signaturePromises.push(...tapScriptSigPromises);
-    }
-
-    return Promise.all(signaturePromises).then(results => {
-      results.forEach(v => this.data.updateInput(inputIndex, v));
-    });
-  }
-
-  private checkTaprootHashesForSig(
-    inputIndex: number,
-    input: PsbtInput,
-    keyPair: Signer | SignerAsync,
-    tapLeafHashToSign?: Buffer,
-    allowedSighashTypes?: number[],
-  ): { hash: Buffer; leafHash?: Buffer }[] {
-    if (typeof keyPair.signSchnorr !== 'function')
-      throw new Error(
-        `Need Schnorr Signer to sign taproot input #${inputIndex}.`,
-      );
-
-    const hashesForSig = getTaprootHashesForSig(
-      inputIndex,
-      input,
-      this.data.inputs,
-      keyPair.publicKey,
-      this.__CACHE,
-      tapLeafHashToSign,
-      allowedSighashTypes,
-    );
-
-    if (!hashesForSig || !hashesForSig.length)
-      throw new Error(
-        `Can not sign for input #${inputIndex} with the key ${keyPair.publicKey.toString(
-          'hex',
-        )}`,
-      );
-
-    return hashesForSig;
   }
 
   toBuffer(): Buffer {
@@ -1082,11 +617,6 @@ export class Psbt {
 
   updateInput(inputIndex: number, updateData: PsbtInputUpdate): this {
     if (updateData.witnessScript) checkInvalidP2WSH(updateData.witnessScript);
-    checkTaprootInputFields(
-      this.data.inputs[inputIndex],
-      updateData,
-      'updateInput',
-    );
     this.data.updateInput(inputIndex, updateData);
     if (updateData.nonWitnessUtxo) {
       addNonWitnessTxCache(
@@ -1099,9 +629,6 @@ export class Psbt {
   }
 
   updateOutput(outputIndex: number, updateData: PsbtOutputUpdate): this {
-    const outputData = this.data.outputs[outputIndex];
-    checkTaprootOutputFields(outputData, updateData, 'updateOutput');
-
     this.data.updateOutput(outputIndex, updateData);
     return this;
   }
@@ -1186,28 +713,11 @@ export interface HDSigner extends HDSignerBase {
   sign(hash: Buffer): Buffer;
 }
 
-/**
- * Same as above but with async sign method
- */
-export interface HDSignerAsync extends HDSignerBase {
-  derivePath(path: string): HDSignerAsync;
-  sign(hash: Buffer): Promise<Buffer>;
-}
-
 export interface Signer {
   publicKey: Buffer;
   network?: any;
-  sign(hash: Buffer, lowR?: boolean): Buffer;
-  signSchnorr?(hash: Buffer): Buffer;
-  getPublicKey?(): Buffer;
-}
-
-export interface SignerAsync {
-  publicKey: Buffer;
-  network?: any;
-  sign(hash: Buffer, lowR?: boolean): Promise<Buffer>;
-  signSchnorr?(hash: Buffer): Promise<Buffer>;
-  getPublicKey?(): Buffer;
+  sign: (hash: Buffer, seed: Uint8Array) => Buffer;
+  getPublicKey?: () => Buffer;
 }
 
 /**
@@ -1365,9 +875,7 @@ function checkFees(psbt: Psbt, cache: PsbtCache, opts: PsbtOpts): void {
 
 function checkInputsForPartialSig(inputs: PsbtInput[], action: string): void {
   inputs.forEach(input => {
-    const throws = isTaprootInput(input)
-      ? checkTaprootInputForSigs(input, action)
-      : checkInputForSig(input, action);
+    const throws = checkInputForSig(input, action);
     if (throws)
       throw new Error('Can not modify transaction, signatures exist.');
   });
@@ -1493,13 +1001,6 @@ type FinalScriptsFunc = (
   finalScriptSig: Buffer | undefined;
   finalScriptWitness: Buffer | undefined;
 };
-type FinalTaprootScriptsFunc = (
-  inputIndex: number, // Which input is it?
-  input: PsbtInput, // The PSBT input contents
-  tapLeafHashToFinalize?: Buffer, // Only finalize this specific leaf
-) => {
-  finalScriptWitness: Buffer | undefined;
-};
 
 function getFinalScripts(
   inputIndex: number,
@@ -1576,7 +1077,9 @@ function getHashAndSighashType(
   hash: Buffer;
   sighashType: number;
 } {
+  console.log('fuck checkForInput0');
   const input = checkForInput(inputs, inputIndex);
+  console.log('fuck checkForInput1');
   const { hash, sighashType, script } = getHashForSig(
     inputIndex,
     input,
@@ -1693,111 +1196,6 @@ function getHashForSig(
   };
 }
 
-function getAllTaprootHashesForSig(
-  inputIndex: number,
-  input: PsbtInput,
-  inputs: PsbtInput[],
-  cache: PsbtCache,
-): { pubkey: Buffer; hash: Buffer; leafHash?: Buffer }[] {
-  const allPublicKeys = [];
-  if (input.tapInternalKey) {
-    const key = getPrevoutTaprootKey(inputIndex, input, cache);
-    if (key) {
-      allPublicKeys.push(key);
-    }
-  }
-
-  if (input.tapScriptSig) {
-    const tapScriptPubkeys = input.tapScriptSig.map(tss => tss.pubkey);
-    allPublicKeys.push(...tapScriptPubkeys);
-  }
-
-  const allHashes = allPublicKeys.map(pubicKey =>
-    getTaprootHashesForSig(inputIndex, input, inputs, pubicKey, cache),
-  );
-
-  return allHashes.flat();
-}
-
-function getPrevoutTaprootKey(
-  inputIndex: number,
-  input: PsbtInput,
-  cache: PsbtCache,
-): Buffer | null {
-  const { script } = getScriptAndAmountFromUtxo(inputIndex, input, cache);
-  return isP2TR(script) ? script.subarray(2, 34) : null;
-}
-
-function trimTaprootSig(signature: Buffer): Buffer {
-  return signature.length === 64 ? signature : signature.subarray(0, 64);
-}
-
-function getTaprootHashesForSig(
-  inputIndex: number,
-  input: PsbtInput,
-  inputs: PsbtInput[],
-  pubkey: Buffer,
-  cache: PsbtCache,
-  tapLeafHashToSign?: Buffer,
-  allowedSighashTypes?: number[],
-): { pubkey: Buffer; hash: Buffer; leafHash?: Buffer }[] {
-  const unsignedTx = cache.__TX;
-
-  const sighashType = input.sighashType || Transaction.SIGHASH_DEFAULT;
-  checkSighashTypeAllowed(sighashType, allowedSighashTypes);
-
-  const prevOuts: Output[] = inputs.map((i, index) =>
-    getScriptAndAmountFromUtxo(index, i, cache),
-  );
-  const signingScripts = prevOuts.map(o => o.script);
-  const values = prevOuts.map(o => o.value);
-
-  const hashes = [];
-  if (input.tapInternalKey && !tapLeafHashToSign) {
-    const outputKey =
-      getPrevoutTaprootKey(inputIndex, input, cache) || Buffer.from([]);
-    if (toXOnly(pubkey).equals(outputKey)) {
-      const tapKeyHash = unsignedTx.hashForWitnessV1(
-        inputIndex,
-        signingScripts,
-        values,
-        sighashType,
-      );
-      hashes.push({ pubkey, hash: tapKeyHash });
-    }
-  }
-
-  const tapLeafHashes = (input.tapLeafScript || [])
-    .filter(tapLeaf => pubkeyInScript(pubkey, tapLeaf.script))
-    .map(tapLeaf => {
-      const hash = tapleafHash({
-        output: tapLeaf.script,
-        version: tapLeaf.leafVersion,
-      });
-      return Object.assign({ hash }, tapLeaf);
-    })
-    .filter(
-      tapLeaf => !tapLeafHashToSign || tapLeafHashToSign.equals(tapLeaf.hash),
-    )
-    .map(tapLeaf => {
-      const tapScriptHash = unsignedTx.hashForWitnessV1(
-        inputIndex,
-        signingScripts,
-        values,
-        Transaction.SIGHASH_DEFAULT,
-        tapLeaf.hash,
-      );
-
-      return {
-        pubkey,
-        hash: tapScriptHash,
-        leafHash: tapLeaf.hash,
-      };
-    });
-
-  return hashes.concat(tapLeafHashes);
-}
-
 function checkSighashTypeAllowed(
   sighashType: number,
   sighashTypes?: number[],
@@ -1895,8 +1293,8 @@ function getScriptFromInput(
 function getSignersFromHD(
   inputIndex: number,
   inputs: PsbtInput[],
-  hdKeyPair: HDSigner | HDSignerAsync,
-): Array<Signer | SignerAsync> {
+  hdKeyPair: HDSigner,
+): Array<Signer> {
   const input = checkForInput(inputs, inputIndex);
   if (!input.bip32Derivation || input.bip32Derivation.length === 0) {
     throw new Error('Need bip32Derivation to sign with HD');
@@ -1915,7 +1313,7 @@ function getSignersFromHD(
       'Need one bip32Derivation masterFingerprint to match the HDSigner fingerprint',
     );
   }
-  const signers: Array<Signer | SignerAsync> = myDerivations.map(bipDv => {
+  const signers: Array<Signer> = myDerivations.map(bipDv => {
     const node = hdKeyPair.derivePath(bipDv!.path);
     if (!bipDv!.pubkey.equals(node.publicKey)) {
       throw new Error('pubkey did not match bip32Derivation');
@@ -2196,9 +1594,11 @@ function getMeaningfulScript(
   meaningfulScript: Buffer;
   type: 'p2sh' | 'p2wsh' | 'p2sh-p2wsh' | 'raw';
 } {
+  console.log(script);
   const isP2SH = isP2SHScript(script);
   const isP2SHP2WSH = isP2SH && redeemScript && isP2WSHScript(redeemScript);
   const isP2WSH = isP2WSHScript(script);
+  console.log(isP2SH, isP2SHP2WSH, isP2WSH);
 
   if (isP2SH && redeemScript === undefined)
     throw new Error('scriptPubkey is P2SH but redeemScript missing');
