@@ -21,7 +21,6 @@ export const isP2PKH = isPaymentFactory(payments.p2pkh);
 export const isP2WPKH = isPaymentFactory(payments.p2wpkh);
 export const isP2WSHScript = isPaymentFactory(payments.p2wsh);
 export const isP2SHScript = isPaymentFactory(payments.p2sh);
-export const isP2TR = isPaymentFactory(payments.p2tr);
 
 export function witnessStackToScriptWitness(witness: Buffer[]): Buffer {
   let buffer = Buffer.allocUnsafe(0);

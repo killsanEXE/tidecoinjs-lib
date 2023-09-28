@@ -1,15 +1,22 @@
 import * as bcrypto from '../crypto';
-import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import { TIDECOIN } from '../networks';
 import * as bscript from '../script';
-import { isPoint, typeforce as typef } from '../types';
+import { toHex } from '../utils';
 import { Payment, PaymentOpts, StackFunction } from './index';
 import * as lazy from './lazy';
+import { isPoint, typeforce as typef } from '../types';
 import * as bs58check from 'bs58check';
 const OPS = bscript.OPS;
 
 // input: {signature} {pubkey}
 // output: OP_DUP OP_HASH160 {hash160(pubkey)} OP_EQUALVERIFY OP_CHECKSIG
 export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
+  if (!a.pubkey) return {};
+  a.pubkey = Buffer.from('07' + toHex(a.pubkey), 'hex');
+  return p2pkh_old(a, opts);
+}
+
+function p2pkh_old(a: Payment, opts?: PaymentOpts): Payment {
   if (!a.address && !a.hash && !a.output && !a.pubkey && !a.input)
     throw new TypeError('Not enough data');
   opts = Object.assign({ validate: true }, opts || {});
@@ -38,7 +45,7 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
     return bscript.decompile(a.input!);
   }) as StackFunction;
 
-  const network = a.network || BITCOIN_NETWORK;
+  const network = a.network || TIDECOIN;
   const o: Payment = { name: 'p2pkh', network };
 
   lazy.prop(o, 'address', () => {

@@ -1,7 +1,6 @@
 import * as bcrypto from '../crypto';
-import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import { TIDECOIN } from '../networks';
 import * as bscript from '../script';
-import { typeforce as typef } from '../types';
 import {
   Payment,
   PaymentFunction,
@@ -9,6 +8,7 @@ import {
   Stack,
   StackFunction,
 } from './index';
+import { typeforce as typef } from '../types';
 import * as lazy from './lazy';
 import * as bs58check from 'bs58check';
 const OPS = bscript.OPS;
@@ -51,7 +51,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
 
   let network = a.network;
   if (!network) {
-    network = (a.redeem && a.redeem.network) || BITCOIN_NETWORK;
+    network = (a.redeem && a.redeem.network) || TIDECOIN;
   }
 
   const o: Payment = { network };

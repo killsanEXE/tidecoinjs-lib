@@ -1,4 +1,4 @@
-import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import { TIDECOIN } from '../networks';
 import * as bscript from '../script';
 import { isPoint, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, Stack } from './index';
@@ -48,7 +48,7 @@ export function p2ms(a: Payment, opts?: PaymentOpts): Payment {
     a,
   );
 
-  const network = a.network || BITCOIN_NETWORK;
+  const network = a.network || TIDECOIN;
   const o: Payment = { network };
 
   let chunks: Stack = [];

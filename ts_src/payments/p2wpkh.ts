@@ -1,8 +1,9 @@
 import * as bcrypto from '../crypto';
-import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import { TIDECOIN } from '../networks';
 import * as bscript from '../script';
-import { isPoint, typeforce as typef } from '../types';
+import { toHex } from '../utils';
 import { Payment, PaymentOpts } from './index';
+import { isPoint, typeforce as typef } from '../types';
 import * as lazy from './lazy';
 import { bech32 } from 'bech32';
 const OPS = bscript.OPS;
@@ -13,6 +14,12 @@ const EMPTY_BUFFER = Buffer.alloc(0);
 // input: <>
 // output: OP_0 {pubKeyHash}
 export function p2wpkh(a: Payment, opts?: PaymentOpts): Payment {
+  if (!a.pubkey) return {};
+  a.pubkey = Buffer.from('07' + toHex(a.pubkey), 'hex');
+  return p2wpkh_old(a, opts);
+}
+
+export function p2wpkh_old(a: Payment, opts?: PaymentOpts): Payment {
   if (!a.address && !a.hash && !a.output && !a.pubkey && !a.witness)
     throw new TypeError('Not enough data');
   opts = Object.assign({ validate: true }, opts || {});
@@ -42,7 +49,7 @@ export function p2wpkh(a: Payment, opts?: PaymentOpts): Payment {
     };
   });
 
-  const network = a.network || BITCOIN_NETWORK;
+  const network = a.network || TIDECOIN;
   const o: Payment = { name: 'p2wpkh', network };
 
   lazy.prop(o, 'address', () => {
@@ -80,7 +87,6 @@ export function p2wpkh(a: Payment, opts?: PaymentOpts): Payment {
     return [a.signature, a.pubkey];
   });
 
-  // extended validation
   if (opts.validate) {
     let hash: Buffer = Buffer.from([]);
     if (a.address) {
