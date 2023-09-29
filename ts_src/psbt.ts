@@ -1,5 +1,5 @@
-import { Psbt as PsbtBase } from 'bip174';
-import * as varuint from 'bip174/src/lib/converter/varint';
+import { Psbt as PsbtBase } from 'tip174/src/lib/psbt';
+import * as varuint from 'tip174/src/lib/converter/varint';
 import {
   Bip32Derivation,
   KeyValue,
@@ -11,8 +11,8 @@ import {
   PsbtOutputUpdate,
   Transaction as ITransaction,
   TransactionFromBuffer,
-} from 'bip174/src/lib/interfaces';
-import { checkForInput, checkForOutput } from 'bip174/src/lib/utils';
+} from 'tip174/src/lib/interfaces';
+import { checkForInput, checkForOutput } from 'tip174/src/lib/utils';
 import { fromOutputScript, toOutputScript } from './address';
 import { cloneBuffer, reverseBuffer } from './bufferutils';
 import * as payments from './payments';
@@ -30,7 +30,7 @@ import {
   isP2SHScript,
 } from './psbt/psbtutils';
 import { Network, TIDECOIN } from './networks';
-import { randomBytes } from '@noble/hashes/utils';
+import { bytesToHex, hexToBytes, randomBytes } from '@noble/hashes/utils';
 
 export interface TransactionInput {
   hash: string | Buffer;
@@ -581,9 +581,12 @@ export class Psbt {
 
     const random = randomBytes(48);
 
+    const number = Buffer.alloc(1);
+    number.writeUint8(7);
+
     const partialSig = [
       {
-        pubkey: keyPair.publicKey,
+        pubkey: Buffer.concat([number, keyPair.publicKey]),
         signature: bscript.signature.encode(
           keyPair.sign(hash, random),
           sighashType,
@@ -821,10 +824,7 @@ function hasSigs(
   let sigs: any;
   if (pubkeys) {
     sigs = pubkeys
-      .map(pkey => {
-        const pubkey = compressPubkey(pkey);
-        return partialSig.find(pSig => pSig.pubkey.equals(pubkey));
-      })
+      .map(pkey => partialSig.find(pSig => pSig.pubkey.equals(pkey)))
       .filter(v => !!v);
   } else {
     sigs = partialSig;
@@ -1061,6 +1061,7 @@ function prepareFinalScripts(
       finalScriptSig = payment.input;
     }
   }
+
   return {
     finalScriptSig,
     finalScriptWitness,
@@ -1077,9 +1078,7 @@ function getHashAndSighashType(
   hash: Buffer;
   sighashType: number;
 } {
-  console.log('fuck checkForInput0');
   const input = checkForInput(inputs, inputIndex);
-  console.log('fuck checkForInput1');
   const { hash, sighashType, script } = getHashForSig(
     inputIndex,
     input,
@@ -1154,8 +1153,11 @@ function getHashForSig(
     );
   } else if (isP2WPKH(meaningfulScript)) {
     // P2WPKH uses the P2PKH template for prevoutScript when signing
-    const signingScript = payments.p2pkh({ hash: meaningfulScript.slice(2) })
-      .output!;
+    // ! signingScript - undefined exception here
+    const signingScript = payments.p2pkh({
+      hash: meaningfulScript.slice(2),
+    }).output!;
+
     hash = unsignedTx.hashForWitnessV0(
       inputIndex,
       signingScript,
@@ -1566,18 +1568,8 @@ function redeemFromFinalWitnessScript(
   return lastItem;
 }
 
-function compressPubkey(pubkey: Buffer): Buffer {
-  if (pubkey.length === 65) {
-    const parity = pubkey[64] & 1;
-    const newKey = pubkey.slice(0, 33);
-    newKey[0] = 2 | parity;
-    return newKey;
-  }
-  return pubkey.slice();
-}
-
 function isPubkeyLike(buf: Buffer): boolean {
-  return buf.length === 33 && bscript.isCanonicalPubKey(buf);
+  return buf.length === 898 && bscript.isCanonicalPubKey(buf);
 }
 
 function isSigLike(buf: Buffer): boolean {
@@ -1594,11 +1586,9 @@ function getMeaningfulScript(
   meaningfulScript: Buffer;
   type: 'p2sh' | 'p2wsh' | 'p2sh-p2wsh' | 'raw';
 } {
-  console.log(script);
   const isP2SH = isP2SHScript(script);
   const isP2SHP2WSH = isP2SH && redeemScript && isP2WSHScript(redeemScript);
   const isP2WSH = isP2WSHScript(script);
-  console.log(isP2SH, isP2SHP2WSH, isP2WSH);
 
   if (isP2SH && redeemScript === undefined)
     throw new Error('scriptPubkey is P2SH but redeemScript missing');
