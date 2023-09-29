@@ -1,13 +1,7 @@
 {
-<<<<<<< HEAD
-  "name": "bitcoinjs-lib",
-  "version": "6.1.5",
-  "description": "Client-side Bitcoin JavaScript library",
-=======
   "name": "tidecoinjs-lib",
-  "version": "6.1.5",
+  "version": "6.1.6",
   "description": "Client-side Tidecoin JavaScript library",
->>>>>>> c463c0f (merge commit)
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "engines": {
@@ -56,8 +50,8 @@
   "dependencies": {
     "@noble/hashes": "^1.2.0",
     "bech32": "^2.0.0",
-    "bip174": "^2.1.1",
     "bs58check": "^3.0.1",
+    "tip174": "^0.0.1",
     "typeforce": "^1.11.3",
     "varuint-bitcoin": "^1.1.2"
   },

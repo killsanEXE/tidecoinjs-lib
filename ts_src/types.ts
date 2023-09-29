@@ -1,31 +1,4 @@
-import { Buffer as NBuffer } from 'buffer';
-
-export const typeforce = require('typeforce');
-
-const ZERO32 = NBuffer.alloc(32, 0);
-const EC_P = NBuffer.from(
-  'fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f',
-  'hex',
-);
-
-export function isPoint(p: Buffer | number | undefined | null): boolean {
-  if (!NBuffer.isBuffer(p)) return false;
-  if (p.length < 33) return false;
-
-  const t = p[0];
-  const x = p.slice(1, 33);
-  if (x.compare(ZERO32) === 0) return false;
-  if (x.compare(EC_P) >= 0) return false;
-  if ((t === 0x02 || t === 0x03) && p.length === 33) {
-    return true;
-  }
-
-  const y = p.slice(33);
-  if (y.compare(ZERO32) === 0) return false;
-  if (y.compare(EC_P) >= 0) return false;
-  if (t === 0x04 && p.length === 65) return true;
-  return false;
-}
+export const typeforce = require("typeforce");
 
 const UINT31_MAX: number = Math.pow(2, 31) - 1;
 export function UInt31(value: number): boolean {
@@ -36,14 +9,14 @@ export function BIP32Path(value: string): boolean {
   return typeforce.String(value) && !!value.match(/^(m\/)?(\d+'?\/)*\d+'?$/);
 }
 BIP32Path.toJSON = (): string => {
-  return 'BIP32 derivation path';
+  return "BIP32 derivation path";
 };
 
 export function Signer(obj: any): boolean {
   return (
     (typeforce.Buffer(obj.publicKey) ||
-      typeof obj.getPublicKey === 'function') &&
-    typeof obj.sign === 'function'
+      typeof obj.getPublicKey === "function") &&
+    typeof obj.sign === "function"
   );
 }
 
@@ -53,7 +26,7 @@ export function Satoshi(value: number): boolean {
 }
 
 // external dependent types
-export const ECPoint = typeforce.quacksLike('Point');
+export const ECPoint = typeforce.quacksLike("Point");
 
 // exposed, external API
 export const Network = typeforce.compile({
@@ -66,19 +39,6 @@ export const Network = typeforce.compile({
   scriptHash: typeforce.UInt8,
   wif: typeforce.UInt8,
 });
-
-export interface XOnlyPointAddTweakResult {
-  parity: 1 | 0;
-  xOnlyPubkey: Uint8Array;
-}
-
-export interface TinySecp256k1Interface {
-  isXOnlyPoint(p: Uint8Array): boolean;
-  xOnlyPointAddTweak(
-    p: Uint8Array,
-    tweak: Uint8Array,
-  ): XOnlyPointAddTweakResult | null;
-}
 
 export const Buffer256bit = typeforce.BufferN(32);
 export const Hash160bit = typeforce.BufferN(20);

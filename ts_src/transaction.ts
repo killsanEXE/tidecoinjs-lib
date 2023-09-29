@@ -3,11 +3,11 @@ import {
   BufferWriter,
   reverseBuffer,
   varuint,
-} from './bufferutils';
-import * as bcrypto from './crypto';
-import * as bscript from './script';
-import { OPS as opcodes } from './script';
-import * as types from './types';
+} from "./bufferutils";
+import * as bcrypto from "./crypto";
+import * as bscript from "./script";
+import { OPS as opcodes } from "./script";
+import * as types from "./types";
 const { typeforce } = types;
 
 function varSliceSize(someScript: Buffer): number {
@@ -30,14 +30,14 @@ function vectorSize(someVector: Buffer[]): number {
 const EMPTY_BUFFER: Buffer = Buffer.allocUnsafe(0);
 const EMPTY_WITNESS: Buffer[] = [];
 const ZERO: Buffer = Buffer.from(
-  '0000000000000000000000000000000000000000000000000000000000000000',
-  'hex',
+  "0000000000000000000000000000000000000000000000000000000000000000",
+  "hex"
 );
 const ONE: Buffer = Buffer.from(
-  '0000000000000000000000000000000000000000000000000000000000000001',
-  'hex',
+  "0000000000000000000000000000000000000000000000000000000000000001",
+  "hex"
 );
-const VALUE_UINT64_MAX: Buffer = Buffer.from('ffffffffffffffff', 'hex');
+const VALUE_UINT64_MAX: Buffer = Buffer.from("ffffffffffffffff", "hex");
 const BLANK_OUTPUT = {
   script: EMPTY_BUFFER,
   valueBuffer: VALUE_UINT64_MAX,
@@ -117,20 +117,20 @@ export class Transaction {
 
       // was this pointless?
       if (!tx.hasWitnesses())
-        throw new Error('Transaction has superfluous witness data');
+        throw new Error("Transaction has superfluous witness data");
     }
 
     tx.locktime = bufferReader.readUInt32();
 
     if (_NO_STRICT) return tx;
     if (bufferReader.offset !== buffer.length)
-      throw new Error('Transaction has unexpected data');
+      throw new Error("Transaction has unexpected data");
 
     return tx;
   }
 
   static fromHex(hex: string): Transaction {
-    return Transaction.fromBuffer(Buffer.from(hex, 'hex'), false);
+    return Transaction.fromBuffer(Buffer.from(hex, "hex"), false);
   }
 
   static isCoinbaseHash(buffer: Buffer): boolean {
@@ -156,16 +156,16 @@ export class Transaction {
     hash: Buffer,
     index: number,
     sequence?: number,
-    scriptSig?: Buffer,
+    scriptSig?: Buffer
   ): number {
     typeforce(
       types.tuple(
         types.Hash256bit,
         types.UInt32,
         types.maybe(types.UInt32),
-        types.maybe(types.Buffer),
+        types.maybe(types.Buffer)
       ),
-      arguments,
+      arguments
     );
 
     if (types.Null(sequence)) {
@@ -197,7 +197,7 @@ export class Transaction {
   }
 
   hasWitnesses(): boolean {
-    return this.ins.some(x => {
+    return this.ins.some((x) => {
       return x.witness.length !== 0;
     });
   }
@@ -238,7 +238,7 @@ export class Transaction {
     newTx.version = this.version;
     newTx.locktime = this.locktime;
 
-    newTx.ins = this.ins.map(txIn => {
+    newTx.ins = this.ins.map((txIn) => {
       return {
         hash: txIn.hash,
         index: txIn.index,
@@ -248,7 +248,7 @@ export class Transaction {
       };
     });
 
-    newTx.outs = this.outs.map(txOut => {
+    newTx.outs = this.outs.map((txOut) => {
       return {
         script: txOut.script,
         value: txOut.value,
@@ -269,11 +269,11 @@ export class Transaction {
   hashForSignature(
     inIndex: number,
     prevOutScript: Buffer,
-    hashType: number,
+    hashType: number
   ): Buffer {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, /* types.UInt8 */ types.Number),
-      arguments,
+      arguments
     );
 
     // https://github.com/bitcoin/bitcoin/blob/master/src/test/sighash_tests.cpp#L29
@@ -281,9 +281,9 @@ export class Transaction {
 
     // ignore OP_CODESEPARATOR
     const ourScript = bscript.compile(
-      bscript.decompile(prevOutScript)!.filter(x => {
+      bscript.decompile(prevOutScript)!.filter((x) => {
         return x !== opcodes.OP_CODESEPARATOR;
-      }),
+      })
     );
 
     const txTmp = this.clone();
@@ -328,7 +328,7 @@ export class Transaction {
       // SIGHASH_ALL: only ignore input scripts
     } else {
       // "blank" others input scripts
-      txTmp.ins.forEach(input => {
+      txTmp.ins.forEach((input) => {
         input.script = EMPTY_BUFFER;
       });
       txTmp.ins[inIndex].script = ourScript;
@@ -346,11 +346,11 @@ export class Transaction {
     inIndex: number,
     prevOutScript: Buffer,
     value: number,
-    hashType: number,
+    hashType: number
   ): Buffer {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, types.Satoshi, types.UInt32),
-      arguments,
+      arguments
     );
 
     let tbuffer: Buffer = Buffer.from([]);
@@ -364,7 +364,7 @@ export class Transaction {
       tbuffer = Buffer.allocUnsafe(36 * this.ins.length);
       bufferWriter = new BufferWriter(tbuffer, 0);
 
-      this.ins.forEach(txIn => {
+      this.ins.forEach((txIn) => {
         bufferWriter.writeSlice(txIn.hash);
         bufferWriter.writeUInt32(txIn.index);
       });
@@ -380,7 +380,7 @@ export class Transaction {
       tbuffer = Buffer.allocUnsafe(4 * this.ins.length);
       bufferWriter = new BufferWriter(tbuffer, 0);
 
-      this.ins.forEach(txIn => {
+      this.ins.forEach((txIn) => {
         bufferWriter.writeUInt32(txIn.sequence);
       });
 
@@ -398,7 +398,7 @@ export class Transaction {
       tbuffer = Buffer.allocUnsafe(txOutsSize);
       bufferWriter = new BufferWriter(tbuffer, 0);
 
-      this.outs.forEach(out => {
+      this.outs.forEach((out) => {
         bufferWriter.writeUInt64(out.value);
         bufferWriter.writeVarSlice(out.script);
       });
@@ -444,7 +444,7 @@ export class Transaction {
 
   getId(): string {
     // transaction hash's are displayed in reverse order
-    return reverseBuffer(this.getHash(false)).toString('hex');
+    return reverseBuffer(this.getHash(false)).toString("hex");
   }
 
   toBuffer(buffer?: Buffer, initialOffset?: number): Buffer {
@@ -452,7 +452,7 @@ export class Transaction {
   }
 
   toHex(): string {
-    return this.toBuffer(undefined, undefined).toString('hex');
+    return this.toBuffer(undefined, undefined).toString("hex");
   }
 
   setInputScript(index: number, scriptSig: Buffer): void {
@@ -470,7 +470,7 @@ export class Transaction {
   private __toBuffer(
     buffer?: Buffer,
     initialOffset?: number,
-    _ALLOW_WITNESS: boolean = false,
+    _ALLOW_WITNESS: boolean = false
   ): Buffer {
     if (!buffer)
       buffer = Buffer.allocUnsafe(this.byteLength(_ALLOW_WITNESS)) as Buffer;
@@ -488,7 +488,7 @@ export class Transaction {
 
     bufferWriter.writeVarInt(this.ins.length);
 
-    this.ins.forEach(txIn => {
+    this.ins.forEach((txIn) => {
       bufferWriter.writeSlice(txIn.hash);
       bufferWriter.writeUInt32(txIn.index);
       bufferWriter.writeVarSlice(txIn.script);
@@ -496,7 +496,7 @@ export class Transaction {
     });
 
     bufferWriter.writeVarInt(this.outs.length);
-    this.outs.forEach(txOut => {
+    this.outs.forEach((txOut) => {
       if (isOutput(txOut)) {
         bufferWriter.writeUInt64(txOut.value);
       } else {
@@ -507,7 +507,7 @@ export class Transaction {
     });
 
     if (hasWitnesses) {
-      this.ins.forEach(input => {
+      this.ins.forEach((input) => {
         bufferWriter.writeVector(input.witness);
       });
     }

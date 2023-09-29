@@ -1,9 +1,10 @@
-import * as varuint from 'bip174/src/lib/converter/varint';
-import { PartialSig, PsbtInput } from 'bip174/src/lib/interfaces';
+import * as varuint from 'tip174/src/lib/converter/varint';
+import { PartialSig, PsbtInput } from 'tip174/src/lib/interfaces';
 import * as bscript from '../script';
 import { Transaction } from '../transaction';
 import { hash160 } from '../crypto';
 import * as payments from '../payments';
+import { bytesToHex } from '@noble/hashes/utils';
 
 function isPaymentFactory(payment: any): (script: Buffer) => boolean {
   return (script: Buffer): boolean => {
@@ -53,19 +54,13 @@ export function witnessStackToScriptWitness(witness: Buffer[]): Buffer {
 }
 
 export function pubkeyPositionInScript(pubkey: Buffer, script: Buffer): number {
-  const pubkeyHash = hash160(pubkey);
-  const pubkeyXOnly = pubkey.slice(1, 33); // slice before calling?
-
+  const pubkeyHash = hash160(Buffer.from('07' + bytesToHex(pubkey), 'hex'));
   const decompiled = bscript.decompile(script);
   if (decompiled === null) throw new Error('Unknown script error');
 
   return decompiled.findIndex(element => {
     if (typeof element === 'number') return false;
-    return (
-      element.equals(pubkey) ||
-      element.equals(pubkeyHash) ||
-      element.equals(pubkeyXOnly)
-    );
+    return element.equals(pubkey) || element.equals(pubkeyHash);
   });
 }
 
