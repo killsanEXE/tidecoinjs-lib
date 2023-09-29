@@ -1078,7 +1078,9 @@ function getHashAndSighashType(
   hash: Buffer;
   sighashType: number;
 } {
+  console.log('fuck checkForInput0');
   const input = checkForInput(inputs, inputIndex);
+  console.log('fuck checkForInput1');
   const { hash, sighashType, script } = getHashForSig(
     inputIndex,
     input,
@@ -1586,9 +1588,11 @@ function getMeaningfulScript(
   meaningfulScript: Buffer;
   type: 'p2sh' | 'p2wsh' | 'p2sh-p2wsh' | 'raw';
 } {
+  console.log(script);
   const isP2SH = isP2SHScript(script);
   const isP2SHP2WSH = isP2SH && redeemScript && isP2WSHScript(redeemScript);
   const isP2WSH = isP2WSHScript(script);
+  console.log(isP2SH, isP2SHP2WSH, isP2WSH);
 
   if (isP2SH && redeemScript === undefined)
     throw new Error('scriptPubkey is P2SH but redeemScript missing');
