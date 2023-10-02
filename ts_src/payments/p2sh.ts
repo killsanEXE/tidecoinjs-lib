@@ -11,13 +11,16 @@ import {
 import { typeforce as typef } from '../types';
 import * as lazy from './lazy';
 import * as bs58check from 'bs58check';
+import { readUint8 } from '../utils';
+import { concatBytes } from '@noble/hashes/utils';
+import { equals } from 'uint8arrays';
 const OPS = bscript.OPS;
 
-function stacksEqual(a: Buffer[], b: Buffer[]): boolean {
+function stacksEqual(a: Uint8Array[], b: Uint8Array[]): boolean {
   if (a.length !== b.length) return false;
 
   return a.every((x, i) => {
-    return x.equals(b[i]);
+    return equals(x, b[i]);
   });
 }
 
@@ -34,17 +37,17 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
       network: typef.maybe(typef.Object),
 
       address: typef.maybe(typef.String),
-      hash: typef.maybe(typef.BufferN(20)),
-      output: typef.maybe(typef.BufferN(23)),
+      hash: typef.maybe(typef.UInt8N(20)),
+      output: typef.maybe(typef.UInt8N(23)),
 
       redeem: typef.maybe({
         network: typef.maybe(typef.Object),
-        output: typef.maybe(typef.Buffer),
-        input: typef.maybe(typef.Buffer),
-        witness: typef.maybe(typef.arrayOf(typef.Buffer)),
+        output: typef.maybe(typef.UInt8),
+        input: typef.maybe(typef.UInt8),
+        witness: typef.maybe(typef.arrayOf(typef.UInt8)),
       }),
-      input: typef.maybe(typef.Buffer),
-      witness: typef.maybe(typef.arrayOf(typef.Buffer)),
+      input: typef.maybe(typef.UInt8),
+      witness: typef.maybe(typef.arrayOf(typef.UInt8)),
     },
     a,
   );
@@ -57,8 +60,8 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
   const o: Payment = { network };
 
   const _address = lazy.value(() => {
-    const payload = Buffer.from(bs58check.decode(a.address!));
-    const version = payload.readUInt8(0);
+    const payload = bs58check.decode(a.address!);
+    const version = readUint8(payload, 0);
     const hash = payload.slice(1);
     return { version, hash };
   });
@@ -71,7 +74,9 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
     return {
       network,
       output:
-        lastChunk === OPS.OP_FALSE ? Buffer.from([]) : (lastChunk as Buffer),
+        lastChunk === OPS.OP_FALSE
+          ? new Uint8Array([])
+          : (lastChunk as Uint8Array),
       input: bscript.compile(chunks.slice(0, -1)),
       witness: a.witness || [],
     };
@@ -81,9 +86,10 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
   lazy.prop(o, 'address', () => {
     if (!o.hash) return;
 
-    const payload = Buffer.allocUnsafe(21);
-    payload.writeUInt8(o.network!.scriptHash, 0);
-    o.hash.copy(payload, 1);
+    const payload = concatBytes(
+      new Uint8Array([o.network!.scriptHash]),
+      o.hash,
+    );
     return bs58check.encode(payload);
   });
   lazy.prop(o, 'hash', () => {
@@ -123,7 +129,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
   });
 
   if (opts.validate) {
-    let hash: Buffer = Buffer.from([]);
+    let hash: Uint8Array = new Uint8Array([]);
     if (a.address) {
       if (_address().version !== network.scriptHash)
         throw new TypeError('Invalid version or Network mismatch');
@@ -132,7 +138,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
     }
 
     if (a.hash) {
-      if (hash.length > 0 && !hash.equals(a.hash))
+      if (hash.length > 0 && !equals(hash, a.hash))
         throw new TypeError('Hash mismatch');
       else hash = a.hash;
     }
@@ -147,7 +153,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
         throw new TypeError('Output is invalid');
 
       const hash2 = a.output.slice(2, 22);
-      if (hash.length > 0 && !hash.equals(hash2))
+      if (hash.length > 0 && !equals(hash, hash2))
         throw new TypeError('Hash mismatch');
       else hash = hash2;
     }
@@ -170,7 +176,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
 
         // match hash against other sources
         const hash2 = bcrypto.hash160(redeem.output);
-        if (hash.length > 0 && !hash.equals(hash2))
+        if (hash.length > 0 && !equals(hash, hash2))
           throw new TypeError('Hash mismatch');
         else hash = hash2;
       }
@@ -192,7 +198,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
     if (a.input) {
       const chunks = _chunks();
       if (!chunks || chunks.length < 1) throw new TypeError('Input too short');
-      if (!Buffer.isBuffer(_redeem().output))
+      if (!Array.isArray(_redeem().output))
         throw new TypeError('Input is invalid');
 
       checkRedeem(_redeem());
@@ -203,9 +209,9 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
         throw new TypeError('Network mismatch');
       if (a.input) {
         const redeem = _redeem();
-        if (a.redeem.output && !a.redeem.output.equals(redeem.output!))
+        if (a.redeem.output && !equals(a.redeem.output, redeem.output!))
           throw new TypeError('Redeem.output mismatch');
-        if (a.redeem.input && !a.redeem.input.equals(redeem.input!))
+        if (a.redeem.input && !equals(a.redeem.input, redeem.input!))
           throw new TypeError('Redeem.input mismatch');
       }
 

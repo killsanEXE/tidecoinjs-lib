@@ -1,13 +1,13 @@
-import * as bcrypto from "../crypto";
-import { TIDECOIN } from "../networks";
-import * as bscript from "../script";
-import { Payment, PaymentOpts } from "./index";
-import { typeforce as typef } from "../types";
-import * as lazy from "./lazy";
-import { bech32 } from "bech32";
+import * as bcrypto from '../crypto';
+import { TIDECOIN } from '../networks';
+import * as bscript from '../script';
+import { Payment, PaymentOpts } from './index';
+import { typeforce as typef } from '../types';
+import * as lazy from './lazy';
+import { bech32 } from 'bech32';
 const OPS = bscript.OPS;
 
-const EMPTY_BUFFER = Buffer.alloc(0);
+const EMPTY_BUFFER = new Uint8Array(0);
 
 // witness: {signature} {pubKey}
 // input: <>
@@ -18,21 +18,21 @@ export function p2wpkh(a: Payment, opts?: PaymentOpts): Payment {
 
 export function p2wpkh_old(a: Payment, opts?: PaymentOpts): Payment {
   if (!a.address && !a.hash && !a.output && !a.pubkey && !a.witness)
-    throw new TypeError("Not enough data");
+    throw new TypeError('Not enough data');
   opts = Object.assign({ validate: true }, opts || {});
 
   typef(
     {
       address: typef.maybe(typef.String),
-      hash: typef.maybe(typef.BufferN(20)),
-      input: typef.maybe(typef.BufferN(0)),
+      hash: typef.maybe(typef.UInt8N(20)),
+      input: typef.maybe(typef.UInt8N(0)),
       network: typef.maybe(typef.Object),
-      output: typef.maybe(typef.BufferN(22)),
-      pubkey: typef.maybe(typef.BufferN(898)),
+      output: typef.maybe(typef.UInt8N(22)),
+      pubkey: typef.maybe(typef.UInt8N(898)),
       signature: typef.maybe(bscript.isCanonicalScriptSignature),
-      witness: typef.maybe(typef.arrayOf(typef.Buffer)),
+      witness: typef.maybe(typef.arrayOf(typef.UInt8)),
     },
-    a
+    a,
   );
 
   const _address = lazy.value(() => {
@@ -42,63 +42,63 @@ export function p2wpkh_old(a: Payment, opts?: PaymentOpts): Payment {
     return {
       version,
       prefix: result.prefix,
-      data: Buffer.from(data),
+      data: Uint8Array.from(data),
     };
   });
 
   const network = a.network || TIDECOIN;
-  const o: Payment = { name: "p2wpkh", network };
+  const o: Payment = { name: 'p2wpkh', network };
 
-  lazy.prop(o, "address", () => {
+  lazy.prop(o, 'address', () => {
     if (!o.hash) return;
 
     const words = bech32.toWords(o.hash);
     words.unshift(0x00);
     return bech32.encode(network.bech32, words);
   });
-  lazy.prop(o, "hash", () => {
+  lazy.prop(o, 'hash', () => {
     if (a.output) return a.output.slice(2, 22);
     if (a.address) return _address().data;
     if (a.pubkey || o.pubkey) return bcrypto.hash160(a.pubkey! || o.pubkey!);
   });
-  lazy.prop(o, "output", () => {
+  lazy.prop(o, 'output', () => {
     if (!o.hash) return;
     return bscript.compile([OPS.OP_0, o.hash]);
   });
-  lazy.prop(o, "pubkey", () => {
+  lazy.prop(o, 'pubkey', () => {
     if (a.pubkey) return a.pubkey;
     if (!a.witness) return;
     return a.witness[1];
   });
-  lazy.prop(o, "signature", () => {
+  lazy.prop(o, 'signature', () => {
     if (!a.witness) return;
     return a.witness[0];
   });
-  lazy.prop(o, "input", () => {
+  lazy.prop(o, 'input', () => {
     if (!o.witness) return;
     return EMPTY_BUFFER;
   });
-  lazy.prop(o, "witness", () => {
+  lazy.prop(o, 'witness', () => {
     if (!a.pubkey) return;
     if (!a.signature) return;
     return [a.signature, a.pubkey];
   });
 
   if (opts.validate) {
-    let hash: Buffer = Buffer.from([]);
+    let hash: Uint8Array = new Uint8Array([]);
     if (a.address) {
       if (network && network.bech32 !== _address().prefix)
-        throw new TypeError("Invalid prefix or Network mismatch");
+        throw new TypeError('Invalid prefix or Network mismatch');
       if (_address().version !== 0x00)
-        throw new TypeError("Invalid address version");
+        throw new TypeError('Invalid address version');
       if (_address().data.length !== 20)
-        throw new TypeError("Invalid address data");
+        throw new TypeError('Invalid address data');
       hash = _address().data;
     }
 
     if (a.hash) {
       if (hash.length > 0 && !hash.equals(a.hash))
-        throw new TypeError("Hash mismatch");
+        throw new TypeError('Hash mismatch');
       else hash = a.hash;
     }
 
@@ -108,38 +108,38 @@ export function p2wpkh_old(a: Payment, opts?: PaymentOpts): Payment {
         a.output[0] !== OPS.OP_0 ||
         a.output[1] !== 0x14
       )
-        throw new TypeError("Output is invalid");
+        throw new TypeError('Output is invalid');
       if (hash.length > 0 && !hash.equals(a.output.slice(2)))
-        throw new TypeError("Hash mismatch");
+        throw new TypeError('Hash mismatch');
       else hash = a.output.slice(2);
     }
 
     if (a.pubkey) {
       const pkh = bcrypto.hash160(a.pubkey);
       if (hash.length > 0 && !hash.equals(pkh))
-        throw new TypeError("Hash mismatch");
+        throw new TypeError('Hash mismatch');
       else hash = pkh;
       if (a.pubkey.length !== 898 || a.pubkey[0] !== 7)
-        throw new TypeError("Invalid pubkey for p2wpkh");
+        throw new TypeError('Invalid pubkey for p2wpkh');
     }
 
     if (a.witness) {
-      if (a.witness.length !== 2) throw new TypeError("Witness is invalid");
+      if (a.witness.length !== 2) throw new TypeError('Witness is invalid');
       if (!bscript.isCanonicalScriptSignature(a.witness[0]))
-        throw new TypeError("Witness has invalid signature");
+        throw new TypeError('Witness has invalid signature');
 
       // ! this is shit
       if (a.witness[1].length !== 898)
-        throw new TypeError("Witness has invalid pubkey");
+        throw new TypeError('Witness has invalid pubkey');
 
       if (a.signature && !a.signature.equals(a.witness[0]))
-        throw new TypeError("Signature mismatch");
+        throw new TypeError('Signature mismatch');
       if (a.pubkey && !a.pubkey.equals(a.witness[1]))
-        throw new TypeError("Pubkey mismatch");
+        throw new TypeError('Pubkey mismatch');
 
       const pkh = bcrypto.hash160(a.witness[1]);
       if (hash.length > 0 && !hash.equals(pkh))
-        throw new TypeError("Hash mismatch");
+        throw new TypeError('Hash mismatch');
     }
   }
 

@@ -12,3 +12,20 @@ export function toHex(buffer: Uint8Array) {
     .map(x => x.toString(16).padStart(2, '0'))
     .join('');
 }
+
+export function readUint8(data: Uint8Array, offset: number): number {
+  return data[offset];
+}
+
+export function readUint16LE(data: Uint8Array, offset: number): number {
+  return (data[offset + 1] << 8) + data[offset];
+}
+
+export function readUint32LE(data: Uint8Array, offset: number): number {
+  return (
+    (data[offset + 3] << 24) +
+    (data[offset + 2] << 16) +
+    (data[offset + 1] << 8) +
+    data[offset]
+  );
+}

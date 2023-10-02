@@ -2,7 +2,7 @@
 // Format: 0x30 [total-length] 0x02 [R-length] [R] 0x02 [S-length] [S]
 // NOTE: SIGHASH byte ignored AND restricted, truncate before use
 
-export function check(buffer: Buffer): boolean {
+export function check(buffer: Uint8Array): boolean {
   if (buffer.length < 8) return false;
   if (buffer.length > 72) return false;
   if (buffer[0] !== 0x30) return false;
@@ -28,29 +28,29 @@ export function check(buffer: Buffer): boolean {
 }
 
 export function decode(buffer: Buffer): { r: Buffer; s: Buffer } {
-  if (buffer.length < 8) throw new Error("DER sequence length is too short");
-  if (buffer.length > 72) throw new Error("DER sequence length is too long");
-  if (buffer[0] !== 0x30) throw new Error("Expected DER sequence");
+  if (buffer.length < 8) throw new Error('DER sequence length is too short');
+  if (buffer.length > 72) throw new Error('DER sequence length is too long');
+  if (buffer[0] !== 0x30) throw new Error('Expected DER sequence');
   if (buffer[1] !== buffer.length - 2)
-    throw new Error("DER sequence length is invalid");
-  if (buffer[2] !== 0x02) throw new Error("Expected DER integer");
+    throw new Error('DER sequence length is invalid');
+  if (buffer[2] !== 0x02) throw new Error('Expected DER integer');
 
   const lenR = buffer[3];
-  if (lenR === 0) throw new Error("R length is zero");
-  if (5 + lenR >= buffer.length) throw new Error("R length is too long");
-  if (buffer[4 + lenR] !== 0x02) throw new Error("Expected DER integer (2)");
+  if (lenR === 0) throw new Error('R length is zero');
+  if (5 + lenR >= buffer.length) throw new Error('R length is too long');
+  if (buffer[4 + lenR] !== 0x02) throw new Error('Expected DER integer (2)');
 
   const lenS = buffer[5 + lenR];
-  if (lenS === 0) throw new Error("S length is zero");
-  if (6 + lenR + lenS !== buffer.length) throw new Error("S length is invalid");
+  if (lenS === 0) throw new Error('S length is zero');
+  if (6 + lenR + lenS !== buffer.length) throw new Error('S length is invalid');
 
-  if (buffer[4] & 0x80) throw new Error("R value is negative");
+  if (buffer[4] & 0x80) throw new Error('R value is negative');
   if (lenR > 1 && buffer[4] === 0x00 && !(buffer[5] & 0x80))
-    throw new Error("R value excessively padded");
+    throw new Error('R value excessively padded');
 
-  if (buffer[lenR + 6] & 0x80) throw new Error("S value is negative");
+  if (buffer[lenR + 6] & 0x80) throw new Error('S value is negative');
   if (lenS > 1 && buffer[lenR + 6] === 0x00 && !(buffer[lenR + 7] & 0x80))
-    throw new Error("S value excessively padded");
+    throw new Error('S value excessively padded');
 
   // non-BIP66 - extract R, S values
   return {
@@ -85,9 +85,9 @@ export function encode(r: Buffer, s: Buffer): Buffer {
   const lenR = r.length;
   const lenS = s.length;
   if (lenR > 1 && r[0] === 0x00 && !(r[1] & 0x80))
-    throw new Error("R value excessively padded");
+    throw new Error('R value excessively padded');
   if (lenS > 1 && s[0] === 0x00 && !(s[1] & 0x80))
-    throw new Error("S value excessively padded");
+    throw new Error('S value excessively padded');
 
   const signature = Buffer.allocUnsafe(6 + lenR + lenS);
 

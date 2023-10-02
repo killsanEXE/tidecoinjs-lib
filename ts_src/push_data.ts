@@ -1,44 +1,43 @@
 import { OPS } from './ops';
+import { readUint16LE, readUint32LE, readUint8 } from './utils';
 
 export function encodingLength(i: number): number {
   return i < OPS.OP_PUSHDATA1 ? 1 : i <= 0xff ? 2 : i <= 0xffff ? 3 : 5;
 }
 
-export function encode(buffer: Buffer, num: number, offset: number): number {
+export function encode(num: number): Uint8Array[] {
+  const result = [];
   const size = encodingLength(num);
 
   // ~6 bit
   if (size === 1) {
-    buffer.writeUInt8(num, offset);
+    result.push(new Uint8Array([num]));
 
     // 8 bit
   } else if (size === 2) {
-    buffer.writeUInt8(OPS.OP_PUSHDATA1, offset);
-    buffer.writeUInt8(num, offset + 1);
+    result.push(new Uint8Array([OPS.OP_PUSHDATA1, num]));
 
     // 16 bit
   } else if (size === 3) {
-    buffer.writeUInt8(OPS.OP_PUSHDATA2, offset);
-    buffer.writeUInt16LE(num, offset + 1);
+    result.push(new Uint8Array([OPS.OP_PUSHDATA2, num]));
 
     // 32 bit
   } else {
-    buffer.writeUInt8(OPS.OP_PUSHDATA4, offset);
-    buffer.writeUInt32LE(num, offset + 1);
+    result.push(new Uint8Array([OPS.OP_PUSHDATA4, num]));
   }
 
-  return size;
+  return result;
 }
 
 export function decode(
-  buffer: Buffer,
+  buffer: Uint8Array,
   offset: number,
 ): {
   opcode: number;
   number: number;
   size: number;
 } | null {
-  const opcode = buffer.readUInt8(offset);
+  const opcode = readUint8(buffer, offset);
   let num: number;
   let size: number;
 
@@ -50,13 +49,13 @@ export function decode(
     // 8 bit
   } else if (opcode === OPS.OP_PUSHDATA1) {
     if (offset + 2 > buffer.length) return null;
-    num = buffer.readUInt8(offset + 1);
+    num = readUint8(buffer, offset + 1);
     size = 2;
 
     // 16 bit
   } else if (opcode === OPS.OP_PUSHDATA2) {
     if (offset + 3 > buffer.length) return null;
-    num = buffer.readUInt16LE(offset + 1);
+    num = readUint16LE(buffer, offset + 1);
     size = 3;
 
     // 32 bit
@@ -64,7 +63,7 @@ export function decode(
     if (offset + 5 > buffer.length) return null;
     if (opcode !== OPS.OP_PUSHDATA4) throw new Error('Unexpected opcode');
 
-    num = buffer.readUInt32LE(offset + 1);
+    num = readUint32LE(buffer, offset + 1);
     size = 5;
   }
 

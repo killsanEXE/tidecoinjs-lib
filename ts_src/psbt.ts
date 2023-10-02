@@ -30,7 +30,7 @@ import {
   isP2SHScript,
 } from './psbt/psbtutils';
 import { Network, TIDECOIN } from './networks';
-import { bytesToHex, hexToBytes, randomBytes } from '@noble/hashes/utils';
+import { randomBytes } from '@noble/hashes/utils';
 
 export interface TransactionInput {
   hash: string | Buffer;

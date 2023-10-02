@@ -3,14 +3,15 @@ import * as bscript from '../script';
 import { typeforce as typef } from '../types';
 import { Payment, PaymentOpts, Stack } from './index';
 import * as lazy from './lazy';
+import { equals } from 'uint8arrays';
 
 const OPS = bscript.OPS;
 
-function stacksEqual(a: Buffer[], b: Buffer[]): boolean {
+function stacksEqual(a: Uint8Array[], b: Uint8Array[]): boolean {
   if (a.length !== b.length) return false;
 
   return a.every((x, i) => {
-    return x.equals(b[i]);
+    return equals(x, b[i]);
   });
 }
 
@@ -22,8 +23,8 @@ export function p2data(a: Payment, opts?: PaymentOpts): Payment {
   typef(
     {
       network: typef.maybe(typef.Object),
-      output: typef.maybe(typef.Buffer),
-      data: typef.maybe(typef.arrayOf(typef.Buffer)),
+      output: typef.maybe(typef.UInt8),
+      data: typef.maybe(typef.arrayOf(typef.UInt8)),
     },
     a,
   );
@@ -46,10 +47,10 @@ export function p2data(a: Payment, opts?: PaymentOpts): Payment {
       const chunks = bscript.decompile(a.output);
       if (chunks![0] !== OPS.OP_RETURN)
         throw new TypeError('Output is invalid');
-      if (!chunks!.slice(1).every(typef.Buffer))
+      if (!chunks!.slice(1).every(typef.UInt8))
         throw new TypeError('Output is invalid');
 
-      if (a.data && !stacksEqual(a.data, o.data as Buffer[]))
+      if (a.data && !stacksEqual(a.data, o.data as Uint8Array[]))
         throw new TypeError('Data mismatch');
     }
   }

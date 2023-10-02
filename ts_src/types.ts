@@ -1,4 +1,4 @@
-export const typeforce = require("typeforce");
+export const typeforce = require('typeforce');
 
 const UINT31_MAX: number = Math.pow(2, 31) - 1;
 export function UInt31(value: number): boolean {
@@ -9,14 +9,14 @@ export function BIP32Path(value: string): boolean {
   return typeforce.String(value) && !!value.match(/^(m\/)?(\d+'?\/)*\d+'?$/);
 }
 BIP32Path.toJSON = (): string => {
-  return "BIP32 derivation path";
+  return 'BIP32 derivation path';
 };
 
 export function Signer(obj: any): boolean {
   return (
     (typeforce.Buffer(obj.publicKey) ||
-      typeof obj.getPublicKey === "function") &&
-    typeof obj.sign === "function"
+      typeof obj.getPublicKey === 'function') &&
+    typeof obj.sign === 'function'
   );
 }
 
@@ -26,7 +26,7 @@ export function Satoshi(value: number): boolean {
 }
 
 // external dependent types
-export const ECPoint = typeforce.quacksLike("Point");
+export const ECPoint = typeforce.quacksLike('Point');
 
 // exposed, external API
 export const Network = typeforce.compile({
