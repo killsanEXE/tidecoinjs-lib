@@ -51,7 +51,7 @@
     "@noble/hashes": "^1.2.0",
     "bech32": "^2.0.0",
     "bs58check": "^3.0.1",
-    "tip174": "^0.0.1",
+    "tip174": "^0.0.3",
     "typeforce": "^1.11.3",
     "varuint-bitcoin": "^1.1.2"
   },

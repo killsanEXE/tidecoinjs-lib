@@ -1,10 +1,10 @@
-import * as bip66 from "./bip66";
-import { OPS, REVERSE_OPS } from "./ops";
-import { Stack } from "./payments";
-import * as pushdata from "./push_data";
-import * as scriptNumber from "./script_number";
-import * as scriptSignature from "./script_signature";
-import * as types from "./types";
+import * as bip66 from './bip66';
+import { OPS, REVERSE_OPS } from './ops';
+import { Stack } from './payments';
+import * as pushdata from './push_data';
+import * as scriptNumber from './script_number';
+import * as scriptSignature from './script_signature';
+import * as types from './types';
 const { typeforce } = types;
 
 const OP_INT_BASE = OPS.OP_RESERVED; // OP_1 - 1
@@ -74,7 +74,7 @@ export function compile(chunks: Buffer | Stack): Buffer {
   const buffer = Buffer.allocUnsafe(bufferSize);
   let offset = 0;
 
-  chunks.forEach((chunk) => {
+  chunks.forEach(chunk => {
     // data chunk
     if (singleChunkIsBuffer(chunk)) {
       // adhere to BIP62.3, minimal push policy
@@ -96,12 +96,12 @@ export function compile(chunks: Buffer | Stack): Buffer {
     }
   });
 
-  if (offset !== buffer.length) throw new Error("Could not decode chunks");
+  if (offset !== buffer.length) throw new Error('Could not decode chunks');
   return buffer;
 }
 
 export function decompile(
-  buffer: Buffer | Array<number | Buffer>
+  buffer: Buffer | Array<number | Buffer>,
 ): Array<number | Buffer> | null {
   // TODO: remove me
   if (chunksIsArray(buffer)) return buffer;
@@ -153,32 +153,32 @@ export function toASM(chunks: Buffer | Array<number | Buffer>): string {
   }
 
   return chunks
-    .map((chunk) => {
+    .map(chunk => {
       // data?
       if (singleChunkIsBuffer(chunk)) {
         const op = asMinimalOP(chunk);
-        if (op === undefined) return chunk.toString("hex");
+        if (op === undefined) return chunk.toString('hex');
         chunk = op as number;
       }
 
       // opcode!
       return REVERSE_OPS[chunk];
     })
-    .join(" ");
+    .join(' ');
 }
 
 export function fromASM(asm: string): Buffer {
   typeforce(types.String, asm);
 
   return compile(
-    asm.split(" ").map((chunkStr) => {
+    asm.split(' ').map(chunkStr => {
       // opcode?
       if (OPS[chunkStr] !== undefined) return OPS[chunkStr];
       typeforce(types.Hex, chunkStr);
 
       // data!
-      return Buffer.from(chunkStr, "hex");
-    })
+      return Buffer.from(chunkStr, 'hex');
+    }),
   );
 }
 
@@ -186,7 +186,7 @@ export function toStack(chunks: Buffer | Array<number | Buffer>): Buffer[] {
   chunks = decompile(chunks) as Stack;
   typeforce(isPushOnly, chunks);
 
-  return chunks.map((op) => {
+  return chunks.map(op => {
     if (singleChunkIsBuffer(op)) return op;
     if (op === OPS.OP_0) return Buffer.allocUnsafe(0);
 
