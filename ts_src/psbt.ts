@@ -31,6 +31,7 @@ import {
 } from './psbt/psbtutils';
 import { Network, TIDECOIN } from './networks';
 import { randomBytes } from '@noble/hashes/utils';
+import { Signer } from 'tidepair';
 
 export interface TransactionInput {
   hash: string | Buffer;
@@ -555,22 +556,22 @@ export class Psbt {
     return this;
   }
 
-  signInput(
+  async signInput(
     inputIndex: number,
     keyPair: Signer,
     sighashTypes?: number[],
-  ): this {
+  ) {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
 
-    return this._signInput(inputIndex, keyPair, sighashTypes);
+    return await this._signInput(inputIndex, keyPair, sighashTypes);
   }
 
-  private _signInput(
+  private async _signInput(
     inputIndex: number,
     keyPair: Signer,
     sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-  ): this {
+  ) {
     const { hash, sighashType } = getHashAndSighashType(
       this.data.inputs,
       inputIndex,
@@ -588,7 +589,7 @@ export class Psbt {
       {
         pubkey: Buffer.concat([number, keyPair.publicKey]),
         signature: bscript.signature.encode(
-          Buffer.from(keyPair.sign(hash, random)),
+          Buffer.from(await keyPair.sign(hash, random)),
           sighashType,
         ),
       },
@@ -713,14 +714,7 @@ export interface HDSigner extends HDSignerBase {
    * Input hash (the "message digest") for the signature algorithm
    * Return a 64 byte signature (32 byte r and 32 byte s in that order)
    */
-  sign(hash: Uint8Array): Uint8Array;
-}
-
-export interface Signer {
-  publicKey: Uint8Array;
-  network?: any;
-  sign: (hash: Uint8Array, seed: Uint8Array) => Uint8Array;
-  getPublicKey?: () => Uint8Array;
+  sign(hash: Uint8Array): Promise<Uint8Array>;
 }
 
 /**
