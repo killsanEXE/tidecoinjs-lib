@@ -1,6 +1,6 @@
 {
   "name": "tidecoinjs-lib",
-  "version": "6.2.4",
+  "version": "6.2.5",
   "description": "Client-side Tidecoin JavaScript library",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",

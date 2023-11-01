@@ -556,18 +556,14 @@ export class Psbt {
     return this;
   }
 
-  async signInput(
-    inputIndex: number,
-    keyPair: Signer,
-    sighashTypes?: number[],
-  ) {
+  signInput(inputIndex: number, keyPair: Signer, sighashTypes?: number[]) {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
 
-    return await this._signInput(inputIndex, keyPair, sighashTypes);
+    return this._signInput(inputIndex, keyPair, sighashTypes);
   }
 
-  private async _signInput(
+  private _signInput(
     inputIndex: number,
     keyPair: Signer,
     sighashTypes: number[] = [Transaction.SIGHASH_ALL],
@@ -589,7 +585,7 @@ export class Psbt {
       {
         pubkey: Buffer.concat([number, keyPair.publicKey]),
         signature: bscript.signature.encode(
-          Buffer.from(await keyPair.sign(hash, random)),
+          Buffer.from(keyPair.sign(hash, random)),
           sighashType,
         ),
       },
@@ -714,7 +710,7 @@ export interface HDSigner extends HDSignerBase {
    * Input hash (the "message digest") for the signature algorithm
    * Return a 64 byte signature (32 byte r and 32 byte s in that order)
    */
-  sign(hash: Uint8Array): Promise<Uint8Array>;
+  sign(hash: Uint8Array): Uint8Array;
 }
 
 /**
